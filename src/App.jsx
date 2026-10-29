@@ -8,11 +8,17 @@ const FIELDS = [
   { name: 'email', label: 'Email', type: 'email', autoComplete: 'email' },
 ]
 
-const MAIL_TYPES = ['LinkedIn Post', 'Job Poster', 'Cold Email']
+const MAIL_TYPES = ['LinkedIn Post', 'Job Poster', 'Cold Email', 'Referral']
+const MAIL_TYPE_HINTS = {
+  'LinkedIn Post': 'Applying to an opening someone shared in a LinkedIn post.',
+  'Job Poster': 'Already applied on LinkedIn Jobs; following up with the recruiter.',
+  'Cold Email': 'Emailing someone whose address you found elsewhere, with no prior contact.',
+  Referral: 'LinkedIn message asking an employee to refer you.',
+}
 const ROLE_TYPES = ['Backend', 'Frontend']
 const TECH_STACKS = ['Java', 'Python', 'Node.js']
 
-const EMPTY_FORM = { firstName: '', lastName: '', companyName: '', email: '', mailType: '', roleType: '', techStack: '', role: '' }
+const EMPTY_FORM = { firstName: '', lastName: '', companyName: '', email: '', mailType: '', roleType: '', techStack: '', role: '', jobLink: '' }
 
 function validate(values) {
   const errors = {}
@@ -23,6 +29,7 @@ function validate(values) {
     errors.email = 'Enter a valid email address'
   }
   if (!values.mailType) errors.mailType = 'Mail type is required'
+  if (values.mailType === 'Referral' && !values.jobLink.trim()) errors.jobLink = 'Job link is required for a referral'
   if (!values.roleType) errors.roleType = 'Role type is required'
   if (!values.techStack) errors.techStack = 'Tech stack is required'
   if (!values.role.trim()) errors.role = 'Role is required'
@@ -32,12 +39,12 @@ function validate(values) {
 function App() {
   const [values, setValues] = useState(EMPTY_FORM)
   const [errors, setErrors] = useState({})
-  const [submitted, setSubmitted] = useState(null)
 
   const template = TEMPLATES[values.mailType]
   const subject = template ? fillTemplate(template.subject, values) : ''
   const body = template ? fillTemplate(template.body, values) : ''
   const missingTemplate = values.mailType && !template
+  const canSend = Boolean(template) && Object.keys(validate(values)).length === 0
 
   function handleChange(e) {
     const { name, value } = e.target
@@ -49,9 +56,10 @@ function App() {
     e.preventDefault()
     const errs = validate(values)
     setErrors(errs)
-    if (Object.keys(errs).length > 0) return
-    setSubmitted(values)
-    setValues(EMPTY_FORM)
+    if (Object.keys(errs).length > 0 || !template) return
+    const params = `subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`
+    const to = encodeURIComponent(values.email.trim()).replace('%40', '@')
+    window.location.href = `mailto:${to}?${params}`
   }
 
   return (
@@ -96,8 +104,23 @@ function App() {
                 </option>
               ))}
             </select>
+            {MAIL_TYPE_HINTS[values.mailType] && (
+              <p className="mt-1 text-sm text-slate-500">{MAIL_TYPE_HINTS[values.mailType]}</p>
+            )}
             <FieldError name="mailType" error={errors.mailType} />
           </div>
+
+          {values.mailType === 'Referral' && (
+            <Field
+              name="jobLink"
+              label="Job link"
+              type="url"
+              placeholder="https://..."
+              value={values.jobLink}
+              error={errors.jobLink}
+              onChange={handleChange}
+            />
+          )}
 
           <RadioGroup
             name="roleType"
@@ -136,17 +159,12 @@ function App() {
 
           <button
             type="submit"
-            className="w-full rounded-lg bg-indigo-600 px-4 py-3 font-medium sm:py-2.5 text-white hover:bg-indigo-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2"
+            disabled={!canSend}
+            className="w-full rounded-lg bg-indigo-600 px-4 py-3 font-medium sm:py-2.5 text-white hover:bg-indigo-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:hover:bg-slate-300"
           >
-            Submit
+            Send
           </button>
         </form>
-
-        {submitted && (
-          <div className="mt-6 rounded-lg bg-green-50 p-4 text-sm text-green-800 ring-1 ring-green-200">
-            Thanks, {submitted.firstName}! We received your details.
-          </div>
-        )}
       </div>
     </main>
   )
